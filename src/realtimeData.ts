@@ -12,30 +12,34 @@ const io = require('socket.io')({
 const tradeRates = {
    USDtoGBP: 'no trade rate',
    GBPtoUSD: 'no trade rate',
-   lastUpdate: 'no timestamp',
 };
+
+function updateTradeRates() {
+   axios
+      .get(
+         'http://apilayer.net/api/live?access_key=13ae867396defb2765bf822c2e525734&currencies=GBP&source=USD&format=1'
+      )
+      .then((response) => {
+         const rawData = response.data;
+         tradeRates.USDtoGBP = rawData.quotes.USDGBP;
+      });
+   axios
+      .get(
+         'http://apilayer.net/api/live?access_key=13ae867396defb2765bf822c2e525734&currencies=USD&source=GBP&format=1'
+      )
+      .then((response) => {
+         const rawData = response.data;
+         tradeRates.GBPtoUSD = rawData.quotes.GBPUSD;
+      });
+   setInterval(updateTradeRates, 86400000);
+}
 
 // Client handshake connection
 io.on('connection', (client) => {
-   // Updates currency rates from external API
-   function updateTradeRates() {
-      axios
-         .get('https://www.freeforexapi.com/api/live?pairs=USDGBP,GBPUSD')
-         .then((response) => {
-            const rawData = response.data;
-            if (rawData.rates.USDGBP.timestamp !== tradeRates.lastUpdate) {
-               tradeRates.lastUpdate = rawData.rates.USDGBP.timestamp;
-               tradeRates.USDtoGBP = rawData.rates.USDGBP.rate;
-               tradeRates.GBPtoUSD = rawData.rates.GBPUSD.rate;
-            }
-            client.emit('data', tradeRates);
-         });
-   }
-
    // Client subscription event
    client.on('subscribeToRatesUpdate', () => {
-      updateTradeRates();
-      setInterval(updateTradeRates, 15000);
+      client.emit('data', tradeRates);
+      setInterval(client.emit('data', tradeRates), 300000);
    });
 });
 
